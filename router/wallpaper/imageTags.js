@@ -139,7 +139,7 @@ router.post("/update_image_tag_status", async (req, res) => {
 		// 3. 查找所有tags_id字段包含该标签ID的图片，并更新它们的status
 		// 使用 FIND_IN_SET 函数，tags_id 格式如 '5,10,6'
 		const updateImageSql = `
-			UPDATE wallpaper_image_list
+			UPDATE wallpaper_image_group
 			SET status = ?
 			WHERE FIND_IN_SET(?, tags_id)
 		`;

@@ -12,7 +12,7 @@ const Bucket = config.cos.Bucket;
  * 删除图片接口
  * 
  * 功能：
- * 1. 根据图片ID删除wallpaper_image_list表中的图片记录
+ * 1. 根据图片ID删除wallpaper_image_group表中的图片记录
  * 2. 同时删除wallpaper_image_to_tags表中的关联记录
  * 3. 可选：从腾讯云COS存储中删除图片文件
  */
@@ -32,7 +32,7 @@ router.post("/delete_images", async (req, res) => {
         let imageInfo = [];
         if (deleteFiles) {
             const { result } = await pools({
-                sql: `SELECT id, url, file FROM wallpaper_image_list WHERE id IN (${imageIds.join(',')})`,
+                sql: `SELECT id, url, file FROM wallpaper_image_group WHERE id IN (${imageIds.join(',')})`,
                 val: [],
                 run: true,
             });
@@ -59,7 +59,7 @@ router.post("/delete_images", async (req, res) => {
             }
         }
 
-        // 3. 删除wallpaper_image_list表中的图片记录
+        // 3. 删除wallpaper_image_group表中的图片记录
         // 分批处理，每批50条
         let deletedImagesCount = 0;
         
@@ -67,7 +67,7 @@ router.post("/delete_images", async (req, res) => {
             const batch = imageIds.slice(i, i + batchSize);
             try {
                 const { result } = await pools({
-                    sql: `DELETE FROM wallpaper_image_list WHERE id IN (${batch.join(',')})`,
+                    sql: `DELETE FROM wallpaper_image_group WHERE id IN (${batch.join(',')})`,
                     val: [],
                     run: true,
                 });
@@ -150,7 +150,7 @@ router.post("/soft_delete_images", async (req, res) => {
         
         // 更新图片状态为无效
         const { result } = await pools({
-            sql: `UPDATE wallpaper_image_list SET status = 0 WHERE id IN (${imageIds.join(',')})`,
+            sql: `UPDATE wallpaper_image_group SET status = 0 WHERE id IN (${imageIds.join(',')})`,
             val: [],
             run: true,
         });
@@ -193,7 +193,7 @@ router.post("/restore_images", async (req, res) => {
         
         // 更新图片状态为有效
         const { result } = await pools({
-            sql: `UPDATE wallpaper_image_list SET status = 1 WHERE id IN (${imageIds.join(',')})`,
+            sql: `UPDATE wallpaper_image_group SET status = 1 WHERE id IN (${imageIds.join(',')})`,
             val: [],
             run: true,
         });

@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const pool = require("../pool.js");
 const {errLog}=require("../utils/err");
+const {formatDateTime, formatDate, formatTime}=require("../utils/formatDateTime");
 //日志记录
 module.exports = {
     toCamelCase(obj) {
@@ -293,5 +294,9 @@ module.exports = {
      * */
     exist(str){
         return str !== undefined && str !== "" && str !== null;
-    }
+    },
+    // 日期时间格式化方法
+    formatDateTime,
+    formatDate,
+    formatTime
 };

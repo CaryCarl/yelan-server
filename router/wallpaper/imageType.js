@@ -5,13 +5,6 @@ const pools = require("../../utils/pools.js");
 const COS = require('cos-nodejs-sdk-v5');
 const config = require("../../utils/config.js");
 
-// 创建COS实例
-const cos = new COS({
-	SecretId: config.cos.SecretId,
-	SecretKey: config.cos.SecretKey,
-	Region: config.cos.Region
-});
-
 // 保存图片
 router.post("/addImgInfo", async (req, res) => {
 	const typeNames = req.body; // 假设请求体直接是数组
@@ -73,8 +66,8 @@ router.post("/addType", async (req, res) => {
 
 		// 使用腾讯云COS创建文件夹（上传一个空对象，以/结尾）
 		await cos.putObject({
-			Bucket: config.cos.Bucket, // 存储桶名称
-			Region: config.cos.Region, // 地域
+			Bucket: '', // 存储桶名称
+			Region: '', // 地域
 			Key: file, // 文件夹路径，以/结尾
 			Body: Buffer.from(''), // 空内容
 		});
@@ -146,7 +139,7 @@ router.post("/update_category_status", async (req, res) => {
 
 		// 2. 查找所有category_id等于该分类ID的图片，并更新它们的status
 		const updateImageSql = `
-			UPDATE wallpaper_image_list
+			UPDATE wallpaper_image_group
 			SET status = ?
 			WHERE category_id = ?
 		`;

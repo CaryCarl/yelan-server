@@ -39,7 +39,7 @@ router.post('/checkImageFavorite', async (req, res) => {
         // 如果提供了image_url，先查询对应的image_id
         else if (image_url) {
             const [imageInfo] = await querySql(
-                `SELECT id FROM wallpaper_image_list WHERE url = ? LIMIT 1`,
+                `SELECT id FROM wallpaper_image_group WHERE url = ? LIMIT 1`,
                 [image_url]
             );
 
@@ -157,13 +157,12 @@ router.post('/addFavorite', async (req, res) => {
         // 如果是新收藏，更新图片收藏数量
         if (isNewFavorite) {
             await querySql(
-                `UPDATE wallpaper_image_list 
+                `UPDATE wallpaper_image_group 
                  SET favorite_count = favorite_count + 1 
                  WHERE id = ?`,
                 [image_id]
             );
         }
-
         // 返回操作结果
         res.send({
             code: 200,
@@ -238,7 +237,7 @@ router.post('/removeFavorite', async (req, res) => {
 
         // 更新图片收藏数量
         await querySql(
-            `UPDATE wallpaper_image_list 
+            `UPDATE wallpaper_image_group 
              SET favorite_count = GREATEST(favorite_count - 1, 0) 
              WHERE id = ?`,
             [image_id]
@@ -308,7 +307,7 @@ router.post('/toggleImageFavorite', async (req, res) => {
             
             // 更新图片收藏数量 +1
             await querySql(
-                `UPDATE wallpaper_image_list 
+                `UPDATE wallpaper_image_group 
                  SET favorite_count = favorite_count + 1 
                  WHERE id = ?`,
                 [image_id]
@@ -326,7 +325,7 @@ router.post('/toggleImageFavorite', async (req, res) => {
             
             // 更新图片收藏数量 +1
             await querySql(
-                `UPDATE wallpaper_image_list 
+                `UPDATE wallpaper_image_group 
                  SET favorite_count = favorite_count + 1 
                  WHERE id = ?`,
                 [image_id]
@@ -344,7 +343,7 @@ router.post('/toggleImageFavorite', async (req, res) => {
             
             // 更新图片收藏数量 -1
             await querySql(
-                `UPDATE wallpaper_image_list 
+                `UPDATE wallpaper_image_group 
                  SET favorite_count = GREATEST(favorite_count - 1, 0) 
                  WHERE id = ?`,
                 [image_id]
@@ -424,7 +423,7 @@ router.post('/getUserFavorites', async (req, res) => {
         // 查询收藏的图片列表
         const favoriteImages = await querySql(
             `SELECT i.*, f.create_time as favorite_time 
-             FROM wallpaper_image_list i
+             FROM wallpaper_image_group i
              INNER JOIN wallpaper_user_favorites f ON i.id = f.image_id
              WHERE f.user_id = ? AND f.status = 1 AND i.status = 1
              ORDER BY f.create_time DESC

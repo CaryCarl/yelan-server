@@ -39,11 +39,11 @@ router.post('/getImageList', async (req, res) => {
 
 		// 构建基础SQL查询
 		let sql = `SELECT i.*, c.name as category_name 
-                   FROM wallpaper_image_list i
+                   FROM wallpaper_image_group i
                    LEFT JOIN wallpaper_image_categories c ON i.category_id = c.id
                    WHERE 1=1`;
 
-		let countSql = `SELECT COUNT(*) as total FROM wallpaper_image_list WHERE 1=1`;
+		let countSql = `SELECT COUNT(*) as total FROM wallpaper_image_group WHERE 1=1`;
 
 		let params = [];
 		let countParams = [];
@@ -211,131 +211,6 @@ function formatDateTime() {
 		padZero(date.getSeconds())
 	].join(':');
 }
-/**
- * 图片分组--------------------------
- */
-//添加图片分组
-router.post("/addImageGroups", async (req, res) => {
-	let sql =
-		"INSERT INTO wallpaper_image_groups (category_id, category_name,title, file, status, create_time, cover_image,images_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-		obj = req.body;
-	const result = await client.put(obj.file, Buffer.from(''));
-	if (result?.res?.status !== 200) {
-		return {
-			code: 500,
-			mesg: "创建文件夹失败"
-		}
-	}
-	let imagesUrl = JSON.stringify(obj.imagesUrl)
-	await pools({
-		sql,
-		val: [obj.categoryId, obj.categoryName, obj.title, obj.file, obj.status, obj.createTime, obj
-			.coverImage || "", imagesUrl
-		],
-		run: false,
-		res,
-		req
-	});
-});
-//删除分组
-router.post("/delImageGroups", async (req, res) => {
-	let sql = "DELETE FROM wallpaper_image_groups WHERE id=?",
-		obj = req.body;
-	await pools({
-		sql,
-		val: [obj.id],
-		run: false,
-		res,
-		req
-	});
-});
 
-
-//修改图片分组
-router.post("/editImageGroups", async (req, res) => {
-	let sql =
-		"UPDATE  wallpaper_image_groups SET title=?,file=?,status=?,update_time=?,category_id=?,category_name=?,cover_image=?,images_url=? WHERE id=?",
-		obj = req.body;
-	let imagesUrlStr = JSON.stringify(obj.imagesUrl);
-	await pools({
-		sql,
-		val: [obj.title, obj.file, obj.status, obj.updateTime, obj.categoryId, obj.categoryName, obj
-			.coverImage, imagesUrlStr, obj.id
-		],
-		run: false,
-		res,
-		req
-	});
-});
-
-// 下载图片并返回 Buffer 
-async function downloadImage(url) {
-	const response = await axios.get(url, {
-		responseType: 'arraybuffer'
-	});
-	return Buffer.from(response.data, 'binary');
-}
-
-// 查询图片分组
-router.post("/getImageGroups", async (req, res) => {
-	let sql = `SELECT * FROM wallpaper_image_groups WHERE 1=1`,
-		obj = req.body;
-	let countSql = `SELECT COUNT(*) as total FROM wallpaper_image_groups WHERE 1=1`;
-	let params = []
-	if (obj?.title) {
-		sql = utils.setLike(sql, "title", obj.title);
-		countSql = utils.setLike(countSql, "title", obj.title);
-	}
-	if (obj.status !== undefined && obj.status !== null && obj.status !== '') {
-		sql += ' AND status = ?';
-		countSql += ' AND status = ?';
-		params.push(obj.status);
-	}
-
-	if (obj?.categoryId) {
-		sql += ' AND category_id = ?';
-		countSql += ' AND category_id = ?';
-		params.push(obj.categoryId);
-	}
-
-	// 分页处理
-	if (obj.pageNumber && obj.pageSize) {
-		const offset = (obj.pageNumber - 1) * obj.pageSize; // 计算偏移量
-		sql += ' LIMIT ? OFFSET ?';
-		params.push(Number(obj.pageSize), Number(offset));
-	}
-
-	let {
-		result
-	} = await pools({
-		sql,
-		val: params,
-		res,
-		req
-	});
-	let countResult = await pools({
-		sql: countSql,
-		val: params,
-		res,
-		req
-	});
-	let total = countResult?.result[0]?.total || 0
-
-	// const camelCaseResult = result.map(utils.toCamelCase);
-	// 将 images_url 从 JSON 字符串转为数组
-	const camelCaseResult = result.map(item => {
-		let camelCaseItem = utils.toCamelCase(item); // 转换为驼峰命名
-		if (camelCaseItem.imagesUrl) {
-			camelCaseItem.imagesUrl = JSON.parse(camelCaseItem.imagesUrl); // 解析 JSON 字符串
-		}
-		return camelCaseItem;
-	});
-
-
-	res.send(utils.returnData({
-		data: camelCaseResult,
-		total
-	}));
-});
 
 module.exports = router;

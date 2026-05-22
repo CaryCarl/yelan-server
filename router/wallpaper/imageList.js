@@ -21,18 +21,16 @@ async function createImageTagRelationsData({ tagId, imageIds, isNewImages = fals
 		val: [],
 		run: true,
 	})
-
 	if (!existingTags || existingTags.length === 0) {
 		throw new Error("未找到有效的标签ID")
 	}
-
 	const existingTagIds = existingTags.map((tag) => tag.id)
 	const missingTags = tagId.filter((id) => !existingTagIds.includes(Number(id)))
 	if (missingTags.length > 0) {
 		throw new Error(`标签ID不存在: ${missingTags.join(", ")}`)
 	}
 
-	const checkImagesSql = `SELECT id FROM wallpaper_image_list WHERE id IN (${imageIds.join(",")})`
+	const checkImagesSql = `SELECT id FROM wallpaper_image_group WHERE id IN (${imageIds.join(",")})`
 	const {
 		result: existingImages
 	} = await pools({
@@ -89,9 +87,9 @@ async function createImageTagRelationsData({ tagId, imageIds, isNewImages = fals
 	}
 
 	const updateImagesSql = isNewImages
-		? `UPDATE wallpaper_image_list SET tags_id = ? WHERE id IN (${imageIds.join(",")})`
+		? `UPDATE wallpaper_image_group SET tags_id = ? WHERE id IN (${imageIds.join(",")})`
 		: `
-		UPDATE wallpaper_image_list il
+		UPDATE wallpaper_image_group il
 		SET tags_id = (
 			SELECT GROUP_CONCAT(tag_id)
 			FROM wallpaper_image_to_tags it
@@ -116,7 +114,8 @@ async function createImageTagRelationsData({ tagId, imageIds, isNewImages = fals
  * 图片上传与标签关联API
  *
  * 功能：
- * 2. 批量插入图片数据到wallpaper_image_list表
+ * 1. 向wallpaper_image_group表插入一条记录（imagesUrl第一条作为封面）
+ * 2. 向wallpaper_images_list表插入所有图片记录
  * 3. 创建图片与标签的关联关系到wallpaper_image_to_tags表
  */
 router.post("/create_image", async (req, res) => {
@@ -180,80 +179,118 @@ router.post("/create_image", async (req, res) => {
 		}
 
 		try {
-			let relationResult = {
-				affected: 0,
-			}
-
-			// 4. 构建图片数据并插入
-			const imageValues = imagesUrl.map((url) => [
-				title || "",
-				categoryId || null,
-				categoryName || "",
-				tagId && Array.isArray(tagId) ? tagId.join(",") : "",
-				new Date().toISOString(),
-				file,
-				status !== undefined ? status : true,
-				url,
-				isWebp,
-				imagesUrl.length || 10
-			])
-
-			const placeholders = imageValues.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?,?)").join(", ")
-			const imageSql = `
-				INSERT INTO wallpaper_image_list 
-				(title, category_id, category_name, tags_id, creation_time, file, status, url, is_webp, group_images_total) 
-				VALUES ${placeholders}
-			`
-
-			const {result} = await pools({
-				sql: imageSql,
-				val: imageValues.flat(),
-				run: true,
-			})
-
-			// 5. 获取插入的图片ID并验证
-			const firstInsertId = result?.insertId
-			if (!firstInsertId) {
-				throw new Error("无法获取插入的图片ID")
-			}
-
-			// 验证插入是否成功
-			const insertedImageIds = []
-			for (let i = 0; i < imagesUrl.length; i++) {
-				insertedImageIds.push(firstInsertId + i)
-			}
-
-			// 验证插入的记录
-			const verifySQL = `SELECT COUNT(*) as count FROM wallpaper_image_list WHERE id IN (${insertedImageIds.join(',')})`
-			const {result: verifyResult} = await pools({
-				sql: verifySQL,
+			// 开始事务
+			await pools({
+				sql: "START TRANSACTION",
 				val: [],
 				run: true,
 			})
 
-			if (!verifyResult || verifyResult[0].count !== imagesUrl.length) {
-				throw new Error("图片数据插入验证失败")
-			}
+			try {
+				let relationResult = {
+					affected: 0,
+				}
 
-			if (tagId && Array.isArray(tagId) && tagId.length > 0) {
-				relationResult = await createImageTagRelationsData({
-					tagId,
-					imageIds: insertedImageIds,
-					isNewImages: true,
+				// 2. 构建图片分组数据并插入 wallpaper_image_group（只插入一条，取imagesUrl[0]作为封面）
+				const coverUrl = imagesUrl[0]
+				const imageListValues = [
+					title || "",
+					tagId && Array.isArray(tagId) ? tagId.join(",") : "",
+					categoryId || null,
+					categoryName || "",
+					new Date().toISOString(),
+					file,
+					status !== undefined ? status : 1,
+					coverUrl,
+					0, // favorite_count 默认0
+					isWebp || 0,
+					imagesUrl.length // group_images_total 为图片总数
+				]
+
+				const imageListSql = `
+					INSERT INTO wallpaper_image_group 
+					(title, tags_id, category_id, category_name, creation_time, file, status, url, favorite_count, is_webp, group_images_total) 
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				`
+
+				const { result: listResult } = await pools({
+					sql: imageListSql,
+					val: imageListValues,
+					run: true,
 				})
-			}
 
-			// 8. 返回成功响应
-			return res.status(200).json({
-				code: 200,
-				mesg: "图片上传成功",
-				data: {
-					imageIds: insertedImageIds,
-					tagId: tagId,
-					relationAffected: relationResult.affected,
-					count: insertedImageIds.length,
-				},
-			})
+				// 3. 获取插入的图片分组ID
+				const groupId = listResult?.insertId
+				if (!groupId) {
+					throw new Error("无法获取插入的图片分组ID")
+				}
+
+				// 4. 插入所有图片到 wallpaper_images_list 表
+				// 将 tagId 数组转换为逗号分隔的字符串
+				const tagIdStr = tagId && Array.isArray(tagId) ? tagId.join(",") : ""
+				const imageValues = imagesUrl.map((url) => [
+					groupId, // group_id 关联到 wallpaper_image_group
+					tagIdStr, // tag_id 标签ID
+					url, // image_url
+					status !== undefined ? status : 1, // status
+					0, // like_count 默认0
+					0, // favorite_count 默认0
+					0, // view_count 默认0
+					isWebp || 0, // is_webp
+					new Date(), // create_time
+					new Date() // update_time
+				])
+
+				const placeholders = imageValues.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ")
+				const imagesSql = `
+					INSERT INTO wallpaper_images_list 
+					(group_id, tag_id, image_url, status, like_count, favorite_count, view_count, is_webp, create_time, update_time) 
+					VALUES ${placeholders}
+				`
+
+				const { result: imagesResult } = await pools({
+					sql: imagesSql,
+					val: imageValues.flat(),
+					run: true,
+				})
+
+				// 5. 创建图片与标签的关联关系
+				if (tagId && Array.isArray(tagId) && tagId.length > 0) {
+					relationResult = await createImageTagRelationsData({
+						tagId,
+						imageIds: [groupId],
+						isNewImages: true,
+					})
+				}
+
+				// 提交事务
+				await pools({
+					sql: "COMMIT",
+					val: [],
+					run: true,
+				})
+
+				// 6. 返回成功响应
+				return res.status(200).json({
+					code: 200,
+					mesg: "图片上传成功",
+					data: {
+						groupId: groupId, // 图片分组ID
+						imageIds: [groupId], // 兼容原接口
+						imagesCount: imagesUrl.length, // 图片总数
+						tagId: tagId,
+						relationAffected: relationResult.affected,
+					},
+				})
+			} catch (error) {
+				// 发生错误时回滚事务
+				await pools({
+					sql: "ROLLBACK",
+					val: [],
+					run: true,
+				})
+				throw error
+			}
 		} catch (error) {
 			throw error
 		}
@@ -350,7 +387,7 @@ router.post("/delete_image_tagRelations", async (req, res) => {
                 run: true,
             })
             
-            // 2. 更新wallpaper_image_list表中的tags_id字段
+            // 2. 更新wallpaper_image_group表中的tags_id字段
             for (const imageId of imageIds) {
                 // 获取图片当前的所有标签
                 const { result: currentTagsResult } = await pools({
@@ -364,17 +401,17 @@ router.post("/delete_image_tagRelations", async (req, res) => {
                     run: true,
                 })
                 
-                // 更新wallpaper_image_list表
+                // 更新wallpaper_image_group表
                 if (currentTagsResult && currentTagsResult.length > 0) {
                     await pools({
-                        sql: "UPDATE wallpaper_image_list SET tags_id = ? WHERE id = ?",
+                        sql: "UPDATE wallpaper_image_group SET tags_id = ? WHERE id = ?",
                         val: [currentTagsResult[0].all_tags, imageId],
                         run: true,
                     })
                 } else {
                     // 如果没有标签了，设置为空字符串
                     await pools({
-                        sql: "UPDATE wallpaper_image_list SET tags_id = '' WHERE id = ?",
+                        sql: "UPDATE wallpaper_image_group SET tags_id = '' WHERE id = ?",
                         val: [imageId],
                         run: true,
                     })

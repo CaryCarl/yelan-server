@@ -46,26 +46,12 @@ process.on('unhandledRejection', (err, test) => {
 	});
 });
 const adminRouter = require('./router/system/admin.js'); //管理菜单等路由
-const fileRouter = require('./router/system/file.js'); //文件等路由
 
 const xcxApi = require("./router/app/index.js");//图片分组管理
 const weappConfig = require("./router/app/weappConfig.js");//图片分组管理
-const materialCategory = require("./router/web/material_category.js");	//资料分类
-const materialList = require("./router/web/material_list.js");	//资料列表
 const uploadCOS = require("./router/uploadCOS.js");	//资料上传
-const materialSubcategory = require("./router/web/material_subcategory.js");	//资料二级分类
-const resource = require("./router/app/resource.js");	//资源
-
-/**
- * 小程序壁纸模块
- */
-const xcxApiWallpaper = require("./router/app/wallpaper/index.js");//图片分组管理
-const xcxApiImageList=require("./router/app/wallpaper/imageList.js");//图片分组管理
-const randomImages=require("./router/app/wallpaper/random-images.js");//图片分组管理
-const imageFavorites=require("./router/app/wallpaper/image-favorites.js");//搜藏
-const download=require("./router/app/wallpaper/download_image.js");//搜藏
-
-
+// 配置管理
+const systemConfig = require("./router/admin/config.js");
 
 
 /**
@@ -76,41 +62,48 @@ const imgGroups = require("./router/wallpaper/imgGroups.js");	//图片列表
 const imageType = require("./router/wallpaper/imageType.js");	//图片类型
 const imageTags = require("./router/wallpaper/imageTags.js");	//图片标签
 
+const imagesController = require("./router/admin/imagesController.js");	//图片列表
+
 server.use('/admin', adminRouter);
-server.use('/file', fileRouter);
 
-server.use("/api/app/auth", xcxApi);
-server.use("/api/weappConfig", weappConfig);
-
-server.use("/api/material_category", materialCategory);
-server.use("/api/material_list", materialList);
-server.use("/api/material_subcategory", materialSubcategory);
-server.use("/api/upload", uploadCOS);
 
 
 
 /**
- * 壁纸模块
+ * 壁纸模块-后台管理系统
  */
+server.use("/api/app/auth", xcxApi);
+server.use("/api/weappConfig", weappConfig);
+server.use("/api/upload", uploadCOS);
+
+
 server.use("/api/wallpaper/imageList", imageList);
 server.use("/api/wallpaper/imgGroups", imgGroups);
 server.use("/api/wallpaper/imageType", imageType);
 server.use("/api/wallpaper/imageTags", imageTags);
 
+server.use("/api/v1/systemConfig", systemConfig);
+server.use("/api/v1/imagesController",imagesController);
 
 
 /**
  * 下面是小程序端接口
  */
-// 小程序壁纸模块
+/**
+ * 小程序壁纸模块
+ */
+const xcxApiWallpaper = require("./router/app/wallpaper/index.js");//图片分组管理
+const xcxApiImageList=require("./router/app/wallpaper/imageList.js");//图片分组管理
+const randomImages=require("./router/app/wallpaper/random-images.js");//图片分组管理
+const imageFavorites=require("./router/app/wallpaper/image-favorites.js");//搜藏
+const download=require("./router/app/wallpaper/download_image.js");//搜藏
+
+
 server.use("/api/app/wallpaper", xcxApiWallpaper);
 server.use("/api/app/image",xcxApiImageList);
 server.use("/api/app/randomImages",randomImages);
 server.use("/api/app/imageFavorites",imageFavorites);
 server.use("/api/app/download",download);
-
-// 小程序资料模块
-server.use("/api/resource", resource);
 
 
 

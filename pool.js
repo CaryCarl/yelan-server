@@ -1,12 +1,11 @@
 const mysql=require("mysql");
 const pool=mysql.createPool({
-	host:"122.51.43.64",
-	port:3306,
-	user:"yelanSQL",
+	host:"103.236.96.82",
+	port:53306,
+	user:"yelan",
 	password:"aaa123456..",
-	database:"yelansql",
+	database:"yelan",
 	connectionLimit:15,
 	dateStrings:true
 });
-
 module.exports=pool;

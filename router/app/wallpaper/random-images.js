@@ -21,8 +21,8 @@ router.post("/get_random_images", async (req, res) => {
         }
 
         // 构建基础SQL查询
-        let sql = `SELECT * FROM wallpaper_image_list WHERE status = ?`;
-        let countSql = `SELECT COUNT(*) as total FROM wallpaper_image_list WHERE status = ?`;
+        let sql = `SELECT * FROM wallpaper_image_group WHERE status = ?`;
+        let countSql = `SELECT COUNT(*) as total FROM wallpaper_image_group WHERE status = ?`;
         let params = [status];
         
         // 添加分类过滤条件
@@ -121,7 +121,7 @@ router.post("/getRandomImagesByTag", async (req, res) => {
             });
         }
         
-        let sql = `SELECT * FROM wallpaper_image_list WHERE status = 1 AND FIND_IN_SET(?, tags_id)`;
+        let sql = `SELECT * FROM wallpaper_image_group WHERE status = 1 AND FIND_IN_SET(?, tags_id)`;
         let params = [tag_id];
         
         // 排除已显示的图片
@@ -167,7 +167,7 @@ router.post("/getRandomFavorites", async (req, res) => {
         
         // 查询用户收藏的图片
         const sql = `
-            SELECT i.* FROM wallpaper_image_list i
+            SELECT i.* FROM wallpaper_image_group i
             INNER JOIN user_favorites f ON i.id = f.image_id
             WHERE f.user_id = ? AND f.status = 1 AND i.status = 1
             ORDER BY RAND()

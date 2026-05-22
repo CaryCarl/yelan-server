@@ -43,7 +43,7 @@ router.get("/get_previous_image", async (req, res) => {
 		// 3. 查询当前图片的前一张图片
 		const previousImageSql = `
       SELECT DISTINCT il.id
-      FROM wallpaper_image_list il
+      FROM wallpaper_image_group il
       WHERE il.id < ?${categoryCondition}${tagCondition}
       ORDER BY il.id DESC
       LIMIT 1
@@ -63,7 +63,7 @@ router.get("/get_previous_image", async (req, res) => {
 			const previousImageId = previousImageResult[0].id;
 			const imageInfoSql = `
         SELECT *
-        FROM wallpaper_image_list
+        FROM wallpaper_image_group
         WHERE id = ?
       `;
 
@@ -97,7 +97,7 @@ router.get("/get_previous_image", async (req, res) => {
 		// 3. 查询符合条件的最大图片ID
 		const maxImageSql = `
             SELECT DISTINCT il.*
-            FROM wallpaper_image_list il
+            FROM wallpaper_image_group il
             WHERE il.category_id = ? 
             AND FIND_IN_SET(?, il.tags_id) > 0
             ORDER BY il.id DESC
@@ -199,7 +199,7 @@ router.get("/get_images_by_tag", async (req, res) => {
 		// 2. 查询与标签关联的图片总数
 		const countSql = `
       SELECT COUNT(DISTINCT il.id) as total
-      FROM wallpaper_image_list il
+      FROM wallpaper_image_group il
       INNER JOIN wallpaper_image_to_tags itt ON il.id = itt.image_id
       WHERE itt.tag_id = ?${statusCondition}
     `
@@ -234,7 +234,7 @@ router.get("/get_images_by_tag", async (req, res) => {
 		// 3. 查询图片数据
 		const querySql = `
       SELECT DISTINCT il.*
-      FROM wallpaper_image_list il
+      FROM wallpaper_image_group il
       INNER JOIN wallpaper_image_to_tags itt ON il.id = itt.image_id
       WHERE itt.tag_id = ?${statusCondition}
       ORDER BY il.${orderField} ${orderDirection}
@@ -383,7 +383,7 @@ router.get("/get_images_by_tags", async (req, res) => {
 			// 交集查询 - 图片必须包含所有指定的标签
 			countSql = `
         SELECT COUNT(DISTINCT il.id) as total
-        FROM wallpaper_image_list il
+        FROM wallpaper_image_group il
         WHERE il.id IN (
           SELECT itt.image_id
           FROM wallpaper_image_to_tags itt
@@ -395,7 +395,7 @@ router.get("/get_images_by_tags", async (req, res) => {
 
 			querySql = `
         SELECT DISTINCT il.*
-        FROM wallpaper_image_list il
+        FROM wallpaper_image_group il
         WHERE il.id IN (
           SELECT itt.image_id
           FROM wallpaper_image_to_tags itt
@@ -410,14 +410,14 @@ router.get("/get_images_by_tags", async (req, res) => {
 			// 并集查询 - 图片包含任意一个指定的标签
 			countSql = `
         SELECT COUNT(DISTINCT il.id) as total
-        FROM wallpaper_image_list il
+        FROM wallpaper_image_group il
         INNER JOIN wallpaper_image_to_tags itt ON il.id = itt.image_id
         WHERE itt.tag_id IN (${tagIdArray.join(",")})
       `
 
 			querySql = `
         SELECT DISTINCT il.*
-        FROM wallpaper_image_list il
+        FROM wallpaper_image_group il
         INNER JOIN wallpaper_image_to_tags itt ON il.id = itt.image_id
         WHERE itt.tag_id IN (${tagIdArray.join(",")})
         ORDER BY il.${orderField} ${orderDirection}
