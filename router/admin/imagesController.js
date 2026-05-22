@@ -8,7 +8,7 @@ const querySql = require("../../utils/query.js");
 /**
  * 后台管理 - 图片列表查询接口
  * 从wallpaper_images_list表查询所有图片详情，关联wallpaper_image_group获取分组信息
- * 支持分页、标题模糊查询、分类过滤、状态过滤和标签过滤
+ * 支持分页、标题模糊查询、分类过滤、状态过滤、标签过滤和下载量排序
  */
 router.post('/getImageList', async (req, res) => {
 	try {
@@ -32,7 +32,7 @@ router.post('/getImageList', async (req, res) => {
 		}
 
 		// 允许的排序字段
-		const allowedSortFields = ['id', 'image_url', 'status', 'create_time', 'update_time', 'like_count', 'favorite_count', 'view_count'];
+		const allowedSortFields = ['id', 'image_url', 'status', 'create_time', 'update_time', 'like_count', 'favorite_count', 'view_count', 'download_count'];
 		const sortField = allowedSortFields.includes(sort_field) ? sort_field : 'create_time';
 
 		// 排序方向
@@ -40,13 +40,14 @@ router.post('/getImageList', async (req, res) => {
 
 		// 构建SQL查询 - 从wallpaper_images_list表查询，关联wallpaper_image_group获取分组信息
 		let sql = `
-			SELECT 
+			SELECT
 				i.id,
 				i.image_url,
 				i.status,
 				i.like_count,
 				i.favorite_count,
 				i.view_count,
+				i.download_count,
 				i.is_webp,
 				i.create_time,
 				i.update_time,
@@ -398,6 +399,48 @@ router.post('/editImageStatus', async (req, res) => {
 
 	} catch (error) {
 		console.error(`[${formatDateTime()}] 修改图片状态失败:`, error);
+		res.status(500).send({
+			code: 500,
+			msg: "服务器内部错误"
+		});
+	}
+});
+
+/**
+ * 后台管理 - 记录图片下载量接口
+ */
+router.post('/recordDownload', async (req, res) => {
+	try {
+		const { id } = req.body;
+
+		if (!id) {
+			return res.status(400).send({
+				code: 400,
+				msg: "缺少图片ID参数"
+			});
+		}
+
+		// 执行下载量+1
+		const { result } = await pools({
+			sql: "UPDATE wallpaper_images_list SET download_count = download_count + 1 WHERE id = ?",
+			val: [id],
+			run: true,
+		});
+
+		if (result.affectedRows === 0) {
+			return res.status(404).send({
+				code: 404,
+				msg: "图片不存在"
+			});
+		}
+
+		return res.send({
+			code: 200,
+			msg: "记录成功"
+		});
+
+	} catch (error) {
+		console.error(`[${formatDateTime()}] 记录下载量失败:`, error);
 		res.status(500).send({
 			code: 500,
 			msg: "服务器内部错误"
