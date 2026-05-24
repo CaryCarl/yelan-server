@@ -3,6 +3,116 @@ const router = express.Router()
 const pools = require("../../../utils/pools.js");
 const { convertDbResultToCamelCase } = require("../../../utils/camelCase.js");
 
+/**
+ * 根据标签ID分页查询图片分组列表
+ * * 接口请求方法: GET
+ * 接口请求路由: /get_group_list_by_tag
+ * * 请求参数:
+ * - tagId: 标签ID (必填)
+ * - page: 当前页码 (可选，默认为 1)
+ * - pageSize: 每页展示数量 (可选，默认为 10)
+ */
+router.get("/get_group_list_by_tag", async (req, res) => {
+	try {
+		// 1. 获取并验证请求参数
+		const { tagId, page = 1, pageSize = 10 } = req.query;
+
+		// 验证必填参数
+		if (!tagId) {
+			return res.status(400).json({
+				code: 400,
+				mesg: "标签ID不能为空",
+			});
+		}
+
+		// 2. 处理分页参数
+		const currentPage = Number.parseInt(page) || 1;
+		const limit = Number.parseInt(pageSize) || 10;
+		const offset = (currentPage - 1) * limit;
+
+		if (currentPage < 1 || limit < 1) {
+			return res.status(400).json({
+				code: 400,
+				mesg: "分页参数无效",
+			});
+		}
+
+		// 3. 查询符合该标签的数据总条数
+		// 结合原有的逻辑，假设只查询 status = 1 (启用状态) 的数据
+		const countSql = `
+			SELECT COUNT(*) AS total
+			FROM wallpaper_image_group
+			WHERE FIND_IN_SET(?, tags_id) > 0 AND status = 1
+		`;
+
+		const { result: countResult } = await pools({
+			sql: countSql,
+			val: [tagId],
+			run: true,
+		});
+
+		const total = countResult[0]?.total || 0;
+
+		// 如果没有找到数据，提前返回以减少数据库压力
+		if (total === 0) {
+			return res.status(200).json({
+				code: 200,
+				mesg: "查询成功",
+				data: {
+					list: [],
+					pagination: {
+						total: 0,
+						page: currentPage,
+						pageSize: limit,
+						totalPages: 0,
+					}
+				},
+			});
+		}
+
+		// 4. 查询当前页的详细列表数据
+		const listSql = `
+			SELECT *
+			FROM wallpaper_image_group
+			WHERE FIND_IN_SET(?, tags_id) > 0 AND status = 1
+			ORDER BY id DESC
+			LIMIT ? OFFSET ?
+		`;
+
+		const { result: listResult } = await pools({
+			sql: listSql,
+			val: [tagId, limit, offset],
+			run: true,
+		});
+
+		// （可选）如果你需要像原有代码一样做驼峰命名转换，可以在这里将 listResult 传给 convertDbResultToCamelCase 
+
+		// 5. 组装分页数据并返回
+		const totalPages = Math.ceil(total / limit);
+
+		return res.status(200).json({
+			code: 200,
+			mesg: "查询成功",
+			data: {
+				list: listResult,
+				pagination: {
+					total,
+					page: currentPage,
+					pageSize: limit,
+					totalPages,
+				}
+			},
+		});
+
+	} catch (err) {
+		console.error("根据标签查询图片分组分页列表时出错:", err);
+		return res.status(500).json({
+			code: 500,
+			mesg: err.message || "服务器处理请求失败",
+		});
+	}
+});
+
 
 /**
  * 根据图片ID查询前一张图片
