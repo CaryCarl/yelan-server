@@ -63,7 +63,8 @@ const imageType = require("./router/wallpaper/imageType.js");	//图片类型
 const imageTags = require("./router/wallpaper/imageTags.js");	//图片标签
 
 const imagesController = require("./router/admin/imagesController.js");	//图片列表
-const imagesGroup = require("./router/admin/imagesGroup.js");	//图片列表
+const imagesGroup = require("./router/admin/imagesGroup.js");	//图片分组
+const albumConfig = require("./router/admin/albumConfig.js");	//专辑配置
 
 server.use('/admin', adminRouter);
 
@@ -86,6 +87,7 @@ server.use("/api/wallpaper/imageTags", imageTags);
 server.use("/api/v1/systemConfig", systemConfig);
 server.use("/api/v1/imagesController",imagesController);
 server.use("/api/v1/imagesGroup",imagesGroup);
+server.use("/api/v1/albumConfig",albumConfig);
 
 
 /**

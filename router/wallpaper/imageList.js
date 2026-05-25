@@ -111,12 +111,73 @@ async function createImageTagRelationsData({ tagId, imageIds, isNewImages = fals
 
 
 /**
+ * 创建专辑与分组关联
+ * @param {Object} params
+ * @param {number} params.albumId - 专辑ID
+ * @param {number} params.groupId - 分组ID
+ * @returns {Promise<{affected: number, insertId: number}>}
+ */
+async function createAlbumGroupRelation({ albumId, groupId }) {
+	if (!albumId || !groupId) {
+		return { affected: 0, insertId: null }
+	}
+
+	// 校验专辑是否存在
+	const { result: albumResult } = await pools({
+		sql: "SELECT id FROM hot_album WHERE id = ?",
+		val: [albumId],
+		run: true,
+	})
+	if (!albumResult || albumResult.length === 0) {
+		throw new Error(`专辑ID不存在: ${albumId}`)
+	}
+
+	// 校验分组是否存在
+	const { result: groupResult } = await pools({
+		sql: "SELECT id FROM wallpaper_image_group WHERE id = ?",
+		val: [groupId],
+		run: true,
+	})
+	if (!groupResult || groupResult.length === 0) {
+		throw new Error(`分组ID不存在: ${groupId}`)
+	}
+
+	// 检查是否已存在关联（避免重复插入）
+	const { result: existResult } = await pools({
+		sql: "SELECT id FROM hot_album_group_relation WHERE album_id = ? AND group_id = ?",
+		val: [albumId, groupId],
+		run: true,
+	})
+
+	if (existResult && existResult.length > 0) {
+		// 已存在关联，直接返回
+		return { affected: 0, insertId: existResult[0].id }
+	}
+
+	const { result } = await pools({
+		sql: `INSERT INTO hot_album_group_relation (album_id, group_id) VALUES (?, ?)`,
+		val: [albumId, groupId],
+		run: true,
+	})
+
+	// 更新专辑的 image_count 字段
+	await pools({
+		sql: `UPDATE hot_album SET image_count = image_count + 1 WHERE id = ?`,
+		val: [albumId],
+		run: true,
+	})
+
+	return { affected: result.affectedRows, insertId: result.insertId }
+}
+
+/**
  * 图片上传与标签关联API
  *
  * 功能：
  * 1. 向wallpaper_image_group表插入一条记录（imagesUrl第一条作为封面）
  * 2. 向wallpaper_images_list表插入所有图片记录
  * 3. 创建图片与标签的关联关系到wallpaper_image_to_tags表
+ * 4. 如果传入albumId，则创建专辑与分组的关联关系到hot_album_group_relation表
  */
 router.post("/create_image", async (req, res) => {
 	const obj = req.body
@@ -154,7 +215,8 @@ router.post("/create_image", async (req, res) => {
 			file,
 			status,
 			imagesUrl,
-			isWebp
+			isWebp,
+			albumId
 		} = obj
 
 		if (!file) {
@@ -204,7 +266,7 @@ router.post("/create_image", async (req, res) => {
 					coverUrl,
 					0, // favorite_count 默认0
 					isWebp || 0,
-					imagesUrl.length // group_images_total 为图片总数
+					imagesUrl.length, // group_images_total 为图片总数
 				]
 
 				const imageListSql = `
@@ -238,13 +300,14 @@ router.post("/create_image", async (req, res) => {
 					0, // view_count 默认0
 					isWebp || 0, // is_webp
 					new Date(), // create_time
-					new Date() // update_time
+					new Date(), // update_time
+					0 // download_count 默认0
 				])
 
-				const placeholders = imageValues.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ")
+				const placeholders = imageValues.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ")
 				const imagesSql = `
 					INSERT INTO wallpaper_images_list 
-					(group_id, tag_id, image_url, status, like_count, favorite_count, view_count, is_webp, create_time, update_time) 
+					(group_id, tag_id, image_url, status, like_count, favorite_count, view_count, is_webp, create_time, update_time,download_count) 
 					VALUES ${placeholders}
 				`
 
@@ -263,6 +326,16 @@ router.post("/create_image", async (req, res) => {
 					})
 				}
 
+				// 6. 如果传入了 albumId，则创建专辑与图片分组的关联关系
+				let albumRelationResult = { affected: 0 }
+				if (albumId) {
+					albumRelationResult = await createAlbumGroupRelation({
+						albumId,
+						groupId,
+						sortOrder: 0,
+					})
+				}
+
 				// 提交事务
 				await pools({
 					sql: "COMMIT",
@@ -270,7 +343,7 @@ router.post("/create_image", async (req, res) => {
 					run: true,
 				})
 
-				// 6. 返回成功响应
+				// 7. 返回成功响应
 				return res.status(200).json({
 					code: 200,
 					mesg: "图片上传成功",
@@ -280,6 +353,8 @@ router.post("/create_image", async (req, res) => {
 						imagesCount: imagesUrl.length, // 图片总数
 						tagId: tagId,
 						relationAffected: relationResult.affected,
+						albumId: albumId || null, // 专辑ID
+						albumRelationAffected: albumRelationResult.affected, // 专辑关联影响行数
 					},
 				})
 			} catch (error) {
