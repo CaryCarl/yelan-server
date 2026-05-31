@@ -6,9 +6,12 @@ const querySql = require("../../../utils/query.js");
 
 // 查询图片分类
 router.get("/get_image_type", async (req, res) => {
-	let sql = `SELECT * FROM wallpaper_image_categories WHERE 1=1`, obj = req.body;
+	let obj = req.query;
+	let sql = `SELECT * FROM wallpaper_image_categories WHERE 1=1`;
 	let countSql = `SELECT COUNT(*) as total FROM wallpaper_image_categories WHERE 1=1`;
-	let params = []
+	let params = [];
+	let countParams = [];
+
 	if (obj?.name) {
 		sql = utils.setLike(sql, "name", obj.name);
 		countSql = utils.setLike(countSql, "name", obj.name);
@@ -17,10 +20,12 @@ router.get("/get_image_type", async (req, res) => {
 		sql += ' AND status = ?';
 		countSql += ' AND status = ?';
 		params.push(obj.status);
+		countParams.push(obj.status);
 	}
-	let { result } = await pools({ sql, val: [obj.status], res, req });
-	let countResult = await pools({ sql: countSql, val: params, res, req });
-	let total = countResult?.result[0]?.total || 0
+
+	let { result } = await pools({ sql, val: params, res, req });
+	let countResult = await pools({ sql: countSql, val: countParams, res, req });
+	let total = countResult?.result[0]?.total || 0;
 	const camelCaseResult = result.map(utils.toCamelCase);
 	res.send(utils.returnData({ data: camelCaseResult, total }));
 });
@@ -28,13 +33,20 @@ router.get("/get_image_type", async (req, res) => {
 // 查询图片标签
 router.get("/get_image_tags", async (req, res) => {
 	try {
-		const result = await pools({
-			sql: `SELECT  * FROM wallpaper_image_tags`
-		});
-		const camelCaseResult = result.result.map(item => {
-			let camelCaseItem = utils.toCamelCase(item); // 转换为驼峰命名
-			return camelCaseItem;
-		});
+		const { status } = req.query;
+		let sql = `SELECT * FROM wallpaper_image_tags WHERE 1=1`;
+		let params = [];
+
+		if (status !== undefined && status !== null && status !== '') {
+			sql += ' AND status = ?';
+			params.push(status);
+		}
+
+		sql += ' ORDER BY id DESC';
+
+		const { result } = await pools({ sql, val: params });
+		const camelCaseResult = result.map(item => utils.toCamelCase(item));
+
 		res.json({
 			code: 200,
 			data: camelCaseResult,
@@ -42,7 +54,7 @@ router.get("/get_image_tags", async (req, res) => {
 		});
 
 	} catch (error) {
-		console.error(' 查询图片标签失败:', error);
+		console.error('查询图片标签失败:', error);
 		res.status(500).json({
 			code: 500,
 			message: '服务器内部错误'

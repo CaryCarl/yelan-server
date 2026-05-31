@@ -1,8 +1,8 @@
 const express = require("express")
 const router = express.Router()
-const pools = require("../../utils/pools.js")
+const pools = require("../../../utils/pools.js")
 const COS = require("cos-nodejs-sdk-v5")
-const config = require("../../utils/config.js")
+const config = require("../../../utils/config.js")
 
 // 腾讯云COS客户端配置
 const cos = new COS(config.cos);

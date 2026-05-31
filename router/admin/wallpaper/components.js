@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const utils = require("../../utils/index.js");
-const pools = require("../../utils/pools.js");
+const utils = require("../../../utils/index.js");
+const pools = require("../../../utils/pools.js");
 //添加文件
 router.post("/addFile", async (req, res) => {
     let sql = "INSERT INTO files(val,type) VALUES (?,?)",

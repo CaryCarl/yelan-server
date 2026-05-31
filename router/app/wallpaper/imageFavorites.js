@@ -8,12 +8,11 @@ const querySql = require("../../../utils/query.js");
  * 请求参数: image_id - 图片ID 或 image_url - 图片URL
  * 返回: { collected: true/false, image_id: 图片ID }
  */
-router.post('/checkImageFavorite', async (req, res) => {
+router.get('/get_group_collect_status', async (req, res) => {
     try {
         // 获取用户身份和图片参数
         const openid = req.headers['x-wx-openid'];
-        const { image_id, image_url } = req.body;
-
+        const { groupId } = req.query;
         // 参数校验
         if (!openid) {
             return res.status(401).send({
@@ -23,52 +22,18 @@ router.post('/checkImageFavorite', async (req, res) => {
         }
 
         // 至少需要提供image_id或image_url中的一个
-        if (!image_id && !image_url) {
+        if (!groupId) {
             return res.status(400).send({
                 code: 400,
-                msg: "请提供图片ID或图片URL"
+                msg: "请提供图片分组ID"
             });
         }
-
-        let targetImageId = null;
-
-        // 如果提供了image_id，直接使用
-        if (image_id && !isNaN(image_id)) {
-            targetImageId = image_id;
-        } 
-        // 如果提供了image_url，先查询对应的image_id
-        else if (image_url) {
-            const [imageInfo] = await querySql(
-                `SELECT id FROM wallpaper_image_group WHERE url = ? LIMIT 1`,
-                [image_url]
-            );
-
-            if (!imageInfo) {
-                return res.send({
-                    code: 200,
-                    data: {
-                        collected: false,
-                        image_id: null,
-                        message: "未找到对应图片"
-                    },
-                    msg: "查询成功"
-                });
-            }
-
-            targetImageId = imageInfo.id;
-        } else {
-            return res.status(400).send({
-                code: 400,
-                msg: "图片参数格式错误"
-            });
-        }
-
         // 查询收藏状态
         const [result] = await querySql(
             `SELECT 1 FROM wallpaper_user_favorites 
-             WHERE user_id = ? AND image_id = ? AND status = 1
+             WHERE user_id = ? AND group_id = ? AND status = 1
              LIMIT 1`,
-            [openid, targetImageId]
+            [openid, groupId]
         );
 
         // 返回收藏状态
@@ -76,7 +41,7 @@ router.post('/checkImageFavorite', async (req, res) => {
             code: 200,
             data: {
                 collected: !!result, // 转换为布尔值
-                image_id: targetImageId
+                groupId
             },
             msg: "查询成功"
         });
@@ -91,15 +56,15 @@ router.post('/checkImageFavorite', async (req, res) => {
 });
 
 /**
- * 收藏图片
- * 请求参数: image_id - 图片ID
+ * 收藏图片分组
+ * 请求参数: groupId - 图片分组ID
  * 返回: 操作结果
  */
-router.post('/addFavorite', async (req, res) => {
+router.post('/add_group_collect', async (req, res) => {
     try {
         // 获取用户身份和图片ID
         const openid = req.headers['x-wx-openid'];
-        const { image_id } = req.body;
+        const { groupId } = req.body;
 
         // 参数校验
         if (!openid) {
@@ -109,18 +74,18 @@ router.post('/addFavorite', async (req, res) => {
             });
         }
 
-        if (!image_id || isNaN(image_id)) {
+        if (!groupId || isNaN(groupId)) {
             return res.status(400).send({
                 code: 400,
-                msg: "图片ID参数错误"
+                msg: "图片分组ID参数错误"
             });
         }
 
         // 查询当前收藏状态
         const [existingFavorite] = await querySql(
             `SELECT id, status FROM wallpaper_user_favorites 
-             WHERE user_id = ? AND image_id = ?`,
-            [openid, image_id]
+             WHERE user_id = ? AND group_id = ?`,
+            [openid, groupId]
         );
 
         let isNewFavorite = false;
@@ -128,9 +93,9 @@ router.post('/addFavorite', async (req, res) => {
         if (!existingFavorite) {
             // 新增收藏记录
             await querySql(
-                `INSERT INTO wallpaper_user_favorites (user_id, image_id, create_time, status) 
+                `INSERT INTO wallpaper_user_favorites (user_id, group_id, create_time, status) 
                  VALUES (?, ?, NOW(), 1)`,
-                [openid, image_id]
+                [openid, groupId]
             );
             isNewFavorite = true;
         } else if (existingFavorite.status === 0) {
@@ -160,7 +125,7 @@ router.post('/addFavorite', async (req, res) => {
                 `UPDATE wallpaper_image_group 
                  SET favorite_count = favorite_count + 1 
                  WHERE id = ?`,
-                [image_id]
+                [groupId]
             );
         }
         // 返回操作结果
@@ -183,15 +148,15 @@ router.post('/addFavorite', async (req, res) => {
 });
 
 /**
- * 取消收藏图片
- * 请求参数: image_id - 图片ID
+ * 取消收藏图片分组
+ * 请求参数: group_id - 图片分组ID
  * 返回: 操作结果
  */
-router.post('/removeFavorite', async (req, res) => {
+router.post('/remove_group_collect', async (req, res) => {
     try {
         // 获取用户身份和图片ID
         const openid = req.headers['x-wx-openid'];
-        const { image_id } = req.body;
+        const { groupId } = req.body;
 
         // 参数校验
         if (!openid) {
@@ -201,18 +166,18 @@ router.post('/removeFavorite', async (req, res) => {
             });
         }
 
-        if (!image_id || isNaN(image_id)) {
+        if (!groupId || isNaN(groupId)) {
             return res.status(400).send({
                 code: 400,
-                msg: "图片ID参数错误"
+                msg: "图片分组ID参数错误"
             });
         }
 
         // 查询当前收藏状态
         const [existingFavorite] = await querySql(
             `SELECT id, status FROM wallpaper_user_favorites 
-             WHERE user_id = ? AND image_id = ?`,
-            [openid, image_id]
+             WHERE user_id = ? AND group_id = ?`,
+            [openid, groupId]
         );
 
         // 如果没有收藏记录或已经取消，直接返回
@@ -240,7 +205,7 @@ router.post('/removeFavorite', async (req, res) => {
             `UPDATE wallpaper_image_group 
              SET favorite_count = GREATEST(favorite_count - 1, 0) 
              WHERE id = ?`,
-            [image_id]
+            [groupId]
         );
 
         // 返回操作结果
@@ -254,7 +219,7 @@ router.post('/removeFavorite', async (req, res) => {
         });
 
     } catch (error) {
-        console.error(`[${formatDateTime()}] 取消收藏图片失败:`, error);
+        console.error(`[${formatDateTime()}] 取消收藏图片分组失败:`, error);
         res.status(500).send({
             code: 500,
             msg: "服务器内部错误"
@@ -304,7 +269,7 @@ router.post('/toggleImageFavorite', async (req, res) => {
                  VALUES (?, ?, NOW(), 1)`,
                 [openid, image_id]
             );
-            
+
             // 更新图片收藏数量 +1
             await querySql(
                 `UPDATE wallpaper_image_group 
@@ -312,7 +277,7 @@ router.post('/toggleImageFavorite', async (req, res) => {
                  WHERE id = ?`,
                 [image_id]
             );
-            
+
             newStatus = true;
         } else if (existingFavorite.status === 0) {
             // 更新已存在但被取消的收藏记录
@@ -322,7 +287,7 @@ router.post('/toggleImageFavorite', async (req, res) => {
                  WHERE id = ?`,
                 [existingFavorite.id]
             );
-            
+
             // 更新图片收藏数量 +1
             await querySql(
                 `UPDATE wallpaper_image_group 
@@ -330,7 +295,7 @@ router.post('/toggleImageFavorite', async (req, res) => {
                  WHERE id = ?`,
                 [image_id]
             );
-            
+
             newStatus = true;
         } else {
             // 取消收藏
@@ -340,7 +305,7 @@ router.post('/toggleImageFavorite', async (req, res) => {
                  WHERE id = ?`,
                 [existingFavorite.id]
             );
-            
+
             // 更新图片收藏数量 -1
             await querySql(
                 `UPDATE wallpaper_image_group 
@@ -348,7 +313,7 @@ router.post('/toggleImageFavorite', async (req, res) => {
                  WHERE id = ?`,
                 [image_id]
             );
-            
+
             newStatus = false;
         }
 
@@ -407,7 +372,7 @@ router.post('/getUserFavorites', async (req, res) => {
              WHERE user_id = ? AND status = 1`,
             [openid]
         );
-        
+
         const total = countResult.total || 0;
 
         // 如果没有收藏记录，直接返回空数组
@@ -435,14 +400,14 @@ router.post('/getUserFavorites', async (req, res) => {
         const formattedResult = favoriteImages.map(item => {
             // 转换为驼峰命名
             let camelCaseItem = utils.toCamelCase(item);
-            
+
             // 处理标签ID字符串为数组
             if (camelCaseItem.tagsId && typeof camelCaseItem.tagsId === 'string') {
                 camelCaseItem.tagsIdArray = camelCaseItem.tagsId.split(',').map(id => parseInt(id));
             } else {
                 camelCaseItem.tagsIdArray = [];
             }
-            
+
             return camelCaseItem;
         });
 

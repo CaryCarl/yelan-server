@@ -685,7 +685,6 @@ router.get("/get_carousel_list", async (req, res) => {
 		});
 	}
 });
-
 /**
  * 获取热门专辑列表
  * 
@@ -867,6 +866,221 @@ router.get("/get_album_detail", async (req, res) => {
 		});
 	} catch (err) {
 		console.error("获取专辑详情时出错:", err);
+		return res.status(500).json({
+			code: 500,
+			mesg: err.message || "服务器处理请求失败",
+		});
+	}
+});
+
+
+/**
+ * 分页查询图片分组列表
+ * 
+ * 接口请求方法: GET
+ * 接口请求路由: /get_group_list
+ * 
+ * 请求参数:
+ * - page: 页码 (必填)
+ * - pageSize: 每页数量 (必填)
+ * - status: 状态筛选 (可选，0-禁用，1-启用)
+ * - tagId: 标签ID筛选 (可选，根据 FIND_IN_SET 查询)
+ * 
+ * 排序: 按 creation_time 倒序（最近时间在前）
+ */
+router.get("/get_group_list", async (req, res) => {
+	try {
+		const { page, pageSize, status, tagId } = req.query;
+
+		// 验证必填参数
+		if (!page || !pageSize) {
+			return res.status(400).json({
+				code: 400,
+				mesg: "page 和 pageSize 为必填参数",
+			});
+		}
+
+		// 处理分页参数
+		const currentPage = Number.parseInt(page) || 1;
+		const limit = Number.parseInt(pageSize) || 10;
+		const offset = (currentPage - 1) * limit;
+
+		if (currentPage < 1 || limit < 1) {
+			return res.status(400).json({
+				code: 400,
+				mesg: "分页参数无效",
+			});
+		}
+
+		// 构建查询条件
+		const queryParams = [];
+		const countParams = [];
+		const whereConditions = [];
+
+		// status 状态筛选
+		if (status !== undefined && (status === '0' || status === '1' || status === 0 || status === 1)) {
+			whereConditions.push("status = ?");
+			queryParams.push(Number(status));
+			countParams.push(Number(status));
+		}
+
+		// tags_id 标签筛选
+		if (tagId) {
+			whereConditions.push("FIND_IN_SET(?, tags_id) > 0");
+			queryParams.push(tagId);
+			countParams.push(tagId);
+		}
+
+		const whereClause = whereConditions.length > 0 ? "WHERE " + whereConditions.join(" AND ") : "";
+
+		// 查询总数
+		const countSql = `
+			SELECT COUNT(*) AS total
+			FROM wallpaper_image_group
+			${whereClause}
+		`;
+
+		const { result: countResult } = await pools({
+			sql: countSql,
+			val: countParams,
+			run: true,
+		});
+
+		const total = countResult[0]?.total || 0;
+
+		// 如果没有数据，提前返回
+		if (total === 0) {
+			return res.status(200).json({
+				code: 200,
+				mesg: "查询成功",
+				data: {
+					list: [],
+					pagination: {
+						total: 0,
+						page: currentPage,
+						pageSize: limit,
+						totalPages: 0,
+					},
+				},
+			});
+		}
+		// 查询列表数据（按 creation_time 倒序）
+		const listSql = `
+			SELECT id, title, category_id, album_id, url, tags_id, status, creation_time
+			FROM wallpaper_image_group
+			${whereClause}
+			ORDER BY creation_time DESC
+			LIMIT ? OFFSET ?
+		`;
+
+		queryParams.push(limit, offset);
+
+		const { result: listResult } = await pools({
+			sql: listSql,
+			val: queryParams,
+			run: true,
+		});
+
+		// 转换为驼峰格式
+		const camelCaseList = convertDbResultToCamelCase(listResult);
+
+		// 计算总页数
+		const totalPages = Math.ceil(total / limit);
+
+		return res.status(200).json({
+			code: 200,
+			mesg: "查询成功",
+			data: {
+				list: camelCaseList,
+				pagination: {
+					total,
+					page: currentPage,
+					pageSize: limit,
+					totalPages,
+				},
+			},
+		});
+
+	} catch (err) {
+		console.error("分页查询图片分组列表时出错:", err);
+		return res.status(500).json({
+			code: 500,
+			mesg: err.message || "服务器处理请求失败",
+		});
+	}
+});
+
+
+/**
+ * 根据分组ID查询图片列表
+ *
+ * 接口请求方法: GET
+ * 接口请求路由: /get_images_by_group
+ *
+ * 请求参数:
+ * - groupId: 分组ID (必填)
+ * - status: 状态筛选 (可选，0-禁用，1-启用)
+ */
+router.get("/get_images_by_group", async (req, res) => {
+	try {
+		const { groupId, status } = req.query;
+		// 验证必填参数
+		if (!groupId) {
+			return res.status(400).json({
+				code: 400,
+				mesg: "分组ID不能为空",
+			});
+		}
+		// 构建查询条件
+		const queryParams = [Number(groupId)];
+		const whereConditions = ["group_id = ?"];
+
+		// status 状态筛选
+		if (status !== undefined && (status === '0' || status === '1' || status === 0 || status === 1)) {
+			whereConditions.push("status = ?");
+			queryParams.push(Number(status));
+		}
+
+		const whereClause = "WHERE " + whereConditions.join(" AND ");
+
+		// 查询图片列表
+		const sql = `
+			SELECT id, group_id, tag_id, image_url, 
+			       status, like_count, favorite_count, download_count, 
+			       view_count, is_webp, create_time, update_time
+			FROM wallpaper_images_list
+			${whereClause}
+			ORDER BY id DESC
+		`;
+
+		const { result } = await pools({
+			sql: sql,
+			val: queryParams,
+			run: true,
+		});
+
+		// 转换为驼峰格式
+		const camelCaseResult = convertDbResultToCamelCase(result);
+
+		// 查询分组信息
+		const groupSql = `SELECT * FROM wallpaper_image_group WHERE id = ?`;
+		const { result: groupResult } = await pools({
+			sql: groupSql,
+			val: [Number(groupId)],
+			run: true,
+		});
+		const groupInfo = groupResult.length > 0 ? convertDbResultToCamelCase(groupResult[0]) : null;
+
+
+		return res.status(200).json({
+			code: 200,
+			mesg: "查询成功",
+			data: camelCaseResult,
+			groupInfo: groupInfo,
+		});
+
+	} catch (err) {
+		console.error("根据分组ID查询图片列表时出错:", err);
 		return res.status(500).json({
 			code: 500,
 			mesg: err.message || "服务器处理请求失败",

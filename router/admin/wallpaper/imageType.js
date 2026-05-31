@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const utils = require("../../utils/index.js");
-const pools = require("../../utils/pools.js");
+const utils = require("../../../utils/index.js");
+const pools = require("../../../utils/pools.js");
 const COS = require('cos-nodejs-sdk-v5');
-const config = require("../../utils/config.js");
+const config = require("../../../utils/config.js");
 
 // 保存图片
 router.post("/addImgInfo", async (req, res) => {

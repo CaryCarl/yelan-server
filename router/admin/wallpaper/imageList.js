@@ -1,6 +1,6 @@
 const express = require("express")
 const router = express.Router()
-const pools = require("../../utils/pools.js")
+const pools = require("../../../utils/pools.js")
 
 async function createImageTagRelationsData({ tagId, imageIds, isNewImages = false }) {
 	if (!tagId || !Array.isArray(tagId) || tagId.length === 0) {
@@ -325,7 +325,6 @@ router.post("/create_image", async (req, res) => {
 						isNewImages: true,
 					})
 				}
-
 				// 6. 如果传入了 albumId，则创建专辑与图片分组的关联关系
 				let albumRelationResult = { affected: 0 }
 				if (albumId) {

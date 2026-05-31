@@ -50,24 +50,23 @@ const adminRouter = require('./router/system/admin.js'); //管理菜单等路由
 const xcxApi = require("./router/app/index.js");//图片分组管理
 const weappConfig = require("./router/app/weappConfig.js");//图片分组管理
 const uploadCOS = require("./router/uploadCOS.js");	//资料上传
-// 配置管理
-const systemConfig = require("./router/admin/config.js");
 
 
 /**
  * 后台管理系统壁纸模块
  */
-const imageList = require("./router/wallpaper/imageList.js");	//图片列表
-const imgGroups = require("./router/wallpaper/imgGroups.js");	//图片列表
-const imageType = require("./router/wallpaper/imageType.js");	//图片类型
-const imageTags = require("./router/wallpaper/imageTags.js");	//图片标签
+const imageList = require("./router/admin/wallpaper/imageList.js");	//图片列表
+const imageType = require("./router/admin/wallpaper/imageType.js");	//图片类型
+const imageTags = require("./router/admin/wallpaper/imageTags.js");	//图片标签
 
+
+// 配置管理
+const albumConfig = require("./router/admin/albumConfig.js");	//专辑配置
+const systemConfig = require("./router/admin/config.js");
 const imagesController = require("./router/admin/imagesController.js");	//图片列表
 const imagesGroup = require("./router/admin/imagesGroup.js");	//图片分组
-const albumConfig = require("./router/admin/albumConfig.js");	//专辑配置
 
 server.use('/admin', adminRouter);
-
 
 
 
@@ -80,7 +79,6 @@ server.use("/api/upload", uploadCOS);
 
 
 server.use("/api/wallpaper/imageList", imageList);
-server.use("/api/wallpaper/imgGroups", imgGroups);
 server.use("/api/wallpaper/imageType", imageType);
 server.use("/api/wallpaper/imageTags", imageTags);
 
@@ -99,8 +97,9 @@ server.use("/api/v1/albumConfig",albumConfig);
 const xcxApiWallpaper = require("./router/app/wallpaper/index.js");//图片分组管理
 const xcxApiImageList=require("./router/app/wallpaper/imageList.js");//图片分组管理
 const randomImages=require("./router/app/wallpaper/random-images.js");//图片分组管理
-const imageFavorites=require("./router/app/wallpaper/image-favorites.js");//搜藏
+const imageFavorites=require("./router/app/wallpaper/imageFavorites.js");//搜藏
 const download=require("./router/app/wallpaper/download_image.js");//搜藏
+const albumApp=require("./router/app/wallpaper/album.js");//专辑
 
 
 server.use("/api/app/wallpaper", xcxApiWallpaper);
@@ -108,6 +107,7 @@ server.use("/api/app/image",xcxApiImageList);
 server.use("/api/app/randomImages",randomImages);
 server.use("/api/app/imageFavorites",imageFavorites);
 server.use("/api/app/download",download);
+server.use("/api/app/album",albumApp);
 
 
 

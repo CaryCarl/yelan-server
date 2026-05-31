@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const utils = require("../../utils/index.js");
-const pools = require("../../utils/pools.js");
+const utils = require("../../../utils/index.js");
+const pools = require("../../../utils/pools.js");
 
 /**
  * 标签管理--------------------------
